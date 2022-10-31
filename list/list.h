@@ -23,6 +23,8 @@ struct List {
     size_t capacity;
 
     size_t first_free;
+
+    bool liner;
 };
 
 #define MIN(a, b) (((a) < (b) )? (a):(b))
@@ -33,9 +35,11 @@ struct List {
 
 #define list_dec(list) _list_dex((&(list)))
 
-#define check_list(list) 
+
 
 #ifdef LOG
+
+#define check_list(list) _check_list(list, __PRETTY_FUNCTION__, __FILE__, __LINE__)
 
 #define warning(list, message) _log_warning(list, message, __PRETTY_FUNCTION__, __FILE__, __LINE__)
 
@@ -45,7 +49,14 @@ struct List {
 
 void dump(List *list); //only for Type_t == int
 
+void _check_list(List *list, const char *func, const char *file, const size_t line);
+
 #else 
+
+#define check_list(list)    assert(list != nullptr);       \
+                            assert(list->data != nullptr); \
+                            assert(list->left != nullptr); \
+                            assert(list->right != nullptr);
 
 #define warning(message)
 
@@ -78,6 +89,8 @@ int list_pop_front(List *list);
 int list_pop_back(List *list);
 
 int list_pop_index(List *list, size_t num);
+
+int list_linerization(List *list);
 
 #ifdef LOG
 
@@ -131,9 +144,61 @@ void _log_error(List *list, const char *message, const char *func, const char *f
 
 #endif
 
+int list_linerization(List *list) {
+    check_list(list);
+    info(list, "linerization start");
+
+    Type_t *new_data  = (Type_t *)calloc(list->capacity, sizeof(Type_t));
+
+    size_t     index = 0;
+    size_t new_index = 0;
+
+    do {
+        new_data[new_index] = list->data[index];
+
+        index = list->right[index];
+        new_index++;
+    } while(index!=0);
+
+    free(list->data);
+    list->data = new_data;
+
+    list->first_free = list->size + 1;
+
+    for (size_t i = 0; i < list->capacity; i++) {
+        list->right[i] = i + 1;
+    }
+
+    for (size_t i = 1; i < list->first_free; i++) {
+        list->left[i] = i - 1;
+    }
+
+    for (size_t i = list->first_free; i < list->capacity; i++) {
+        list->left[i] = 0;
+        list->data[i] = FREE;
+    }
+
+    list->right[list->capacity - 1] = 0;
+
+    list->left[0] = list->first_free - 1;
+    list->right[    list->first_free - 1] = 0;
+
+    check_list(list);
+    info(list, "linerization end");
+
+    list->liner = true;
+
+    return 0;
+}
+
+
 int list_pop_index(List *list, size_t num) {
     check_list(list);
     info(list, "start pop index");
+
+    if (num != list->left[0] && num != list->right[0]) {
+        list->liner = false;
+    }
 
     if (num == 0) {
         return POP_ZERO_ELEMENT;
@@ -151,6 +216,8 @@ int list_pop_index(List *list, size_t num) {
     list->right[num] = list->first_free;
 
     list->first_free = num;
+
+    list->size--;
 
     check_list(list);
     info(list, "end pop index");
@@ -236,6 +303,10 @@ int list_push_index(List *list, Type_t a, size_t index) {
     check_list(list);
     info(list, "start push index");
 
+    if (index != list->left[0]) {
+        list->liner = false;
+    }
+
     if (list->first_free == 0) {
         list_resize(list, list->capacity * 2);
     }
@@ -251,6 +322,10 @@ int list_push_index(List *list, Type_t a, size_t index) {
     size_t first_free = list->first_free;
     list->first_free  = list->right[first_free];
 
+    if (first_free != index + 1) {
+        list->liner = false;
+    }
+
     list->data[ first_free] = a;
     list->left[ first_free] = index;
     list->right[first_free] = list->right[index];
@@ -258,6 +333,8 @@ int list_push_index(List *list, Type_t a, size_t index) {
     list->right[index] = first_free;
 
     list->left[list->right[first_free]] = first_free;
+
+    list->size++;
 
     check_list(list);
     info(list, "end pop index");
@@ -289,6 +366,8 @@ void _list_init(List *list) {
     list->capacity = 1;
 
     list->first_free = 0;
+
+    list->liner = true;
 }
 
 void _list_dec(List *list) {
@@ -300,6 +379,7 @@ void _list_dec(List *list) {
 
     list->capacity = 0;
     list->size     = 0;
+    list->liner    = false;
 }
 
 int list_push_back(List *list, Type_t a) {
@@ -333,8 +413,13 @@ int list_pop_front(List *list) {
 size_t list_num_to_index(List *list, size_t num) {
     check_list(list);
 
-    size_t index = 0;
+    if (list->liner) {
+        return list->right[0] + num;
+    }
+
+    size_t index = list->right[0];
     for (size_t i = 0; i < num; i++) {
+        printf("1");
         index = list->left[index];
     }
     return index;
@@ -366,20 +451,109 @@ size_t list_previous(List *list, size_t num) {
 
 #define ADD_SVC_TO_LOG_HTML
 
+void _check_list(List *list, const char *func, const char *file, const size_t line) {
+    if (list == nullptr) {
+        _log_error(list, "list ptr = nullptr", func, file, line);
+    }
+
+    if (list->left == nullptr) {
+        _log_error(list, "list.left ptr = nullptr", func, file, line);
+    }
+
+    if (list->right == nullptr) {
+        _log_error(list, "list.right ptr = nullptr", func, file, line);
+    }
+
+    if (list->data == nullptr) {
+        _log_error(list, "list.data ptr = nullptr", func, file, line);
+    }
+
+    if (list->size >= list->capacity) {
+        _log_error(list, "list.size too large", func, file, line);
+    }
+
+    for (size_t i = 0; i < list->capacity; i++) {
+        if (list->right[i] >= list->capacity) {
+            _log_error(list, "list.right element is too large", func, file, line);
+        }
+        if (list->left[i] >= list->capacity) {
+            _log_error(list, "list.left element is too large", func, file, line);
+        }
+    }
+
+    bool *usage = (bool *)calloc(list->capacity, sizeof(bool));
+
+    size_t index = 0;
+
+    for (size_t i = 0; i <= list->size; i++) {
+        if (usage[index]) {
+            _log_error(list, "syckl in vertexes", func, file, line);
+        }
+        usage[index] = true;
+
+        index = list->right[index];
+    }
+
+    if (index) {
+        _log_error(list, "vertices are larger than the size", func, file, line);
+    }
+
+    size_t free_itr = list->first_free;
+
+    if (free_itr != 0) {
+        for (size_t i = 0; i < list->capacity - list->size - 1; i++) {
+            if (usage[free_itr]) {
+                _log_error(list, "syckl in free vertexes or free vertex refer to filled vertexes", func, file, line);
+            }
+            usage[free_itr] = true;
+
+            if (list->data[free_itr] != FREE) {
+                _log_error(list, "data free element != FREE const", func, file, line);
+            }
+
+            if (list->left[free_itr] != 0) {
+                _log_error(list, "list.left != 0 in free element", func, file, line);
+            }
+
+            free_itr = list->right[free_itr];
+        }
+
+        if (free_itr) {
+            _log_error(list, "free vertices are larger than the size", func, file, line);
+        }
+    }
+    else {
+        if (list->size != list->capacity - 1) {
+            _log_error(list, "list.first_free == 0 bat size == capacity", func, file, line);
+        }
+    }
+
+    free(usage);
+}
+
 void dump(List *list) {
+    assert(list        != nullptr);
+
+    assert(list->data  != nullptr);
+    assert(list->left  != nullptr);
+    assert(list->right != nullptr);
+
     GEN_SVC {
         FILE *file = fopen("log/input.dot", "w");
 
         fprintf(file, "digraph G {rankdir=LR;style=filled;graph [splines = headport splines=ortho];\n");
         for (size_t i = 0; i < list->capacity; i++) {
             if (list->data[i] == FREE) {
-                fprintf(file, "VERTEX%zu[label=\"%zu | free | l = %zu | r = %zu\", shape=\"Mrecord\", style = filled, fillcolor = \"#c0ffee\"]\n", i, i, list->left[i], list->right[i]);
+                fprintf(file, "VERTEX%zu[label=\"%zu | free | l = %zu | r = %zu\", shape=\"Mrecord\", style = filled, fillcolor = \"#c0ffee\"]\n",\
+                                     i,          i,        list->left[i], list->right[i]);
             }
             else if (list->data[i] == POISON) {
-                fprintf(file, "VERTEX%zu[label=\"%zu | poison | l = %zu | r = %zu\", shape=\"Mrecord\"]\n", i, i, list->left[i], list->right[i]);
+                fprintf(file, "VERTEX%zu[label=\"%zu | poison | l = %zu | r = %zu\", shape=\"Mrecord\"]\n",\
+                                     i,          i,        list->left[i], list->right[i]);
             }
             else{
-                fprintf(file, "VERTEX%zu[label=\"%zu | data = %d | l = %zu | r = %zu\", shape=\"Mrecord\", style = filled, fillcolor = \"#decade\"]\n", i, i, list->data[i], list->left[i], list->right[i]);
+                fprintf(file, "VERTEX%zu[label=\"%zu | data = %d | l = %zu | r = %zu\", shape=\"Mrecord\", style = filled, fillcolor = \"#decade\"]\n",\
+                                     i,          i, list->data[i], list->left[i], list->right[i]);
             }
             
         }
