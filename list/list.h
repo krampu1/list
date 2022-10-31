@@ -344,12 +344,12 @@ int list_push_index(List *list, Type_t a, size_t index) {
 
 void _list_init(List *list) {
     assert(list != nullptr);
-
+#ifdef LOG
     FILE *file = fopen(log_file_path, "w");
     assert(file != nullptr);
     fprintf(file, "<pre>\n\n");
     fclose(file);
-
+#endif
     list->data = (Type_t *)calloc(sizeof(Type_t), 1);
     assert(list->data != nullptr);
     list->data[0] = POISON;
@@ -419,7 +419,6 @@ size_t list_num_to_index(List *list, size_t num) {
 
     size_t index = list->right[0];
     for (size_t i = 0; i < num; i++) {
-        printf("1");
         index = list->left[index];
     }
     return index;
