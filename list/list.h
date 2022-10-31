@@ -446,10 +446,6 @@ size_t list_previous(List *list, size_t num) {
 
 #ifdef LOG
 
-#define GEN_SVC
-
-#define ADD_SVC_TO_LOG_HTML
-
 void _check_list(List *list, const char *func, const char *file, const size_t line) {
     if (list == nullptr) {
         _log_error(list, "list ptr = nullptr", func, file, line);
@@ -530,6 +526,12 @@ void _check_list(List *list, const char *func, const char *file, const size_t li
     free(usage);
 }
 
+#define GEN_SVC
+
+#define ADD_SVC_TO_LOG_HTML
+
+#define ADD_PTR_TO_FIRST_FREE
+
 void dump(List *list) {
     assert(list        != nullptr);
 
@@ -565,6 +567,11 @@ void dump(List *list) {
         for (size_t i = 0; i < list->capacity; i++ ) {
             fprintf(file, "VERTEX%zu->VERTEX%zu[color=\"red\"]\n", i, list->left[i]);
         }
+
+        fprintf(file, "VERTEX_FREE[lable = \"ptr_free\", shape=\"Mrecord\", style = filled, fillcolor = \"#f1ee00\"]\n");
+
+        fprintf(file, "VERTEX_FREE->VERTEX%zu[color=\"green\"]\n", list->first_free);
+
         fprintf(file, "}");
 
         fclose(file);
