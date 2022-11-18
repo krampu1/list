@@ -19,5 +19,11 @@ int main() {
 
     list_pop_index(&list, 2);
 
+    list_linerization(&list);
+
+    list_resize(&list, 3);
+
     list_pop_front(&list);
+
+    list_dec(list);
 }
