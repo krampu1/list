@@ -15,6 +15,8 @@ enum List_errors {
     POP_ZERO_ELEMENT      = 4,
 };
 
+const size_t MIN_CAPACITY = 1;
+
 struct List {
     Type_t *data;
     size_t *left;
@@ -27,6 +29,12 @@ struct List {
 
     bool liner;
 };
+
+const char *COLOR_ERROR = "red";
+
+const char *COLOR_INFO  = "green";
+
+const char *COLOR_WARNING = "orange";
 
 #define MIN(a, b) (((a) < (b) )? (a):(b))
 
@@ -77,7 +85,7 @@ void _list_dec(List *list);
 
 int list_resize(List *list, size_t new_size);
 
-int list_push_index(List *list, Type_t a, size_t index);
+static int list_emplace_index(List *list, Type_t a, size_t index);
 
 size_t list_num_to_index(List *list, size_t num);
 
@@ -89,7 +97,7 @@ int list_pop_front(List *list);
 
 int list_pop_back(List *list);
 
-int list_pop_index(List *list, size_t num);
+static int list_erace_index(List *list, size_t num);
 
 int list_linerization(List *list);
 
@@ -99,7 +107,7 @@ static void fill_free(List *list, size_t capacity, size_t new_size);
 
 static void upd_free_ptr(List *list, size_t new_size);
 
-static size_t calculate_min_size(List *list, size_t new_size);
+static size_t calculate_min_capacity(List *list);
 
 static void list_asserts(List *list, const char *func, const char *file, const size_t line);
 
@@ -109,48 +117,48 @@ static void check_list_link_free(List *list, bool *usage, const char *func, cons
 
 #ifdef LOG
 
-void _log_info(List *list, const char *message, const char *func, const char *file, const size_t line);
+static void _log_info(List *list, const char *message, const char *func, const char *file, const size_t line);
 
-void _log_error(List *list, const char *message, const char *func, const char *file, const size_t line);
+static void _log_error(List *list, const char *message, const char *func, const char *file, const size_t line);
 
-void _log_warning(List *list, const char *message, const char *func, const char *file, const size_t line);
+static void _log_warning(List *list, const char *message, const char *func, const char *file, const size_t line);
 
-void _log_warning(List *list, const char *message, const char *func, const char *file, const size_t line) {
+static void _log_warning(List *list, const char *message, const char *func, const char *file, const size_t line) {
     assert(message != nullptr);
 
     assert(log_file_path != nullptr);
     FILE *file_ptr = fopen(log_file_path, "a");
     assert(file_ptr != nullptr);
 
-    fprintf(file_ptr, "<font color=\"orange\">warning:\"%s\" in file:%s in func:%s in line:%Iu</font>\n\n", message, file, func, line);
+    fprintf(file_ptr, "<font color=\"%s\">warning:\"%s\" in file:%s in func:%s in line:%Iu</font>\n\n", COLOR_WARNING, message, file, func, line);
 
     fclose(file_ptr);
 
     dump(list);
 }
 
-void _log_info(List *list, const char *message, const char *func, const char *file, const size_t line) {
+static void _log_info(List *list, const char *message, const char *func, const char *file, const size_t line) {
     assert(message != nullptr);
 
     assert(log_file_path != nullptr);
     FILE *file_ptr = fopen(log_file_path, "a");
     assert(file_ptr != nullptr);
 
-    fprintf(file_ptr, "<font color=\"green\">info:\"%s\" in file:%s in func:%s in line:%Iu</font>\n\n", message, file, func, line);
+    fprintf(file_ptr, "<font color=\"%s\">info:\"%s\" in file:%s in func:%s in line:%Iu</font>\n\n", COLOR_INFO, message, file, func, line);
 
     fclose(file_ptr);
 
     dump(list);
 }
 
-void _log_error(List *list, const char *message, const char *func, const char *file, const size_t line) {
+static void _log_error(List *list, const char *message, const char *func, const char *file, const size_t line) {
     assert(message != nullptr);
 
     assert(log_file_path != nullptr);
     FILE *file_ptr = fopen(log_file_path, "a");
     assert(file_ptr != nullptr);
 
-    fprintf(file_ptr, "<font color=\"red\">info:\"%s\" in file:%s in func:%s in line:%Iu</font>\n\n", message, file, func, line);
+    fprintf(file_ptr, "<font color=\"%s\">info:\"%s\" in file:%s in func:%s in line:%Iu</font>\n\n", COLOR_ERROR, message, file, func, line);
 
     fclose(file_ptr);
 
@@ -207,9 +215,9 @@ int list_linerization(List *list) {
 }
 
 
-int list_pop_index(List *list, size_t num) {
+static int list_erace_index(List *list, size_t num) {
     check_list(list);
-    info(list, "start pop index");
+    info(list, "start erace index");
 
     if (num != list->left[0] && num != list->right[0]) {
         list->liner = false;
@@ -220,7 +228,7 @@ int list_pop_index(List *list, size_t num) {
     }
 
     if (list->data[num] == FREE) {
-        warning(list, "maybe pop free");
+        warning(list, "maybe erace free");
     }
 
     list->right[list->left[num]] = list->right[num];
@@ -235,7 +243,7 @@ int list_pop_index(List *list, size_t num) {
     list->size--;
 
     check_list(list);
-    info(list, "end pop index");
+    info(list, "end erace index");
 
     return 0;
 }
@@ -244,7 +252,7 @@ int list_resize(List *list, size_t new_size) {
     check_list(list);
     info(list, "start resize");
 
-    new_size = calculate_min_size(list, new_size);
+    new_size = MAX(calculate_min_capacity(list), new_size);
 
     Type_t *new_data  = (Type_t *)calloc(sizeof(Type_t), new_size);
     size_t *new_left  = (size_t *)calloc(sizeof(size_t), new_size);
@@ -279,15 +287,17 @@ int list_resize(List *list, size_t new_size) {
     return 0;
 }
 
-static size_t calculate_min_size(List *list, size_t new_size) {
+static size_t calculate_min_capacity(List *list) {
     size_t index = 0;
 
+    size_t new_capacity = MIN_CAPACITY;
+
     do {
-        new_size = MAX(new_size, index + 1);
+        new_capacity = MAX(new_capacity, index + 1);
         index = list->right[index];
     } while (index);
 
-    return new_size;
+    return new_capacity;
 }
 
 static void upd_free_ptr(List *list, size_t new_size) {
@@ -330,9 +340,9 @@ static void del_free_after_newsize(List *list, size_t new_size) {
     }
 }
 
-int list_push_index(List *list, Type_t a, size_t index) {
+static int list_emplace_index(List *list, Type_t a, size_t index) {
     check_list(list);
-    info(list, "start push index");
+    info(list, "start emplace index");
 
     if (index != list->left[0]) {
         list->liner = false;
@@ -368,7 +378,7 @@ int list_push_index(List *list, Type_t a, size_t index) {
     list->size++;
 
     check_list(list);
-    info(list, "end pop index");
+    info(list, "end emplace index");
 
     return 0;
 }
@@ -418,28 +428,28 @@ int list_push_back(List *list, Type_t a) {
     check_list(list);
     info(list, "start push back");
 
-    return list_push_index(list, a, list->left[0]);
+    return list_emplace_index(list, a, list->left[0]);
 }
 
 int list_push_front(List *list, Type_t a) {
     check_list(list);
     info(list, "start push front");
 
-    return list_push_index(list, a, 0);    
+    return list_emplace_index(list, a, 0);    
 }
 
 int list_pop_back(List *list) {
     check_list(list);
     info(list, "start pop back");
 
-    return list_pop_index(list, list->left[0]);
+    return list_erace_index(list, list->left[0]);
 }
 
 int list_pop_front(List *list) {
     check_list(list);
     info(list, "start pop front");
 
-    return list_pop_index(list, list->right[0]);
+    return list_erace_index(list, list->right[0]);
 }
 
 size_t list_num_to_index(List *list, size_t num) {

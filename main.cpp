@@ -17,7 +17,7 @@ int main() {
 
     list_push_back(&list, 0);
 
-    list_pop_index(&list, 2);
+    list_erace_index(&list, 2);
 
     list_linerization(&list);
 
